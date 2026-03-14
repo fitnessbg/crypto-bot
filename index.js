@@ -1,74 +1,76 @@
 
-Telegraf, Markup } = require("telegraf");
+const { Telegraf } = require("telegraf");
 const cron = require("node-cron");
 const { getTokenPrice } = require("./priceTracker");
 const { MESSAGES, RESPONSES, BOT_CONFIG } = require("./config");
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-bot.start((ctx) => {
-  const name = ctx.from.first_name || "ami";
-  const keyboard = Markup.inlineKeyboard([
-    [Markup.button.callback("Projet", "about"), Markup.button.callback("Prix", "price")],
-    [Markup.button.callback("Roadmap", "roadmap"), Markup.button.callback("FAQ", "faq")],
-  ]);
-  ctx.replyWithMarkdown(MESSAGES.welcome.replace("{name}", name), keyboard);
+const pick = function(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+};
+
+bot.start(function(ctx) {
+  var name = ctx.from.first_name || "ami";
+  var msg = MESSAGES.welcome.replace("{name}", name);
+  ctx.reply(msg);
 });
 
-bot.command("price", async (ctx) => {
+bot.command("price", async function(ctx) {
   ctx.reply("Recherche du prix...");
-  const msg = await getTokenPrice();
-  ctx.replyWithMarkdown(msg);
+  var msg = await getTokenPrice();
+  ctx.reply(msg);
 });
 
-bot.command("roadmap", (ctx) => ctx.replyWithMarkdown(MESSAGES.roadmap));
-bot.command("faq", (ctx) => ctx.replyWithMarkdown(MESSAGES.faq));
-bot.command("stats", (ctx) => ctx.replyWithMarkdown(MESSAGES.stats));
-
-bot.on("callback_query", async (ctx) => {
-  const data = ctx.callbackQuery.data;
-  await ctx.answerCbQuery();
-  if (data === "price") {
-    const msg = await getTokenPrice();
-    return ctx.editMessageText(msg, { parse_mode: "Markdown" });
-  }
-  const map = {
-    about: MESSAGES.about,
-    roadmap: MESSAGES.roadmap,
-    faq: MESSAGES.faq,
-    stats: MESSAGES.stats,
-  };
-  if (map[data]) ctx.editMessageText(map[data], { parse_mode: "Markdown" });
+bot.command("roadmap", function(ctx) {
+  ctx.reply(MESSAGES.roadmap);
 });
 
-bot.on("text", (ctx) => {
-  const text = ctx.message.text.toLowerCase();
-  for (const [keywords, key] of Object.entries(RESPONSES.keywordMap)) {
-    if (keywords.split("|").some((kw) => text.includes(kw))) {
-      return ctx.replyWithMarkdown(pick(RESPONSES[key]));
+bot.command("faq", function(ctx) {
+  ctx.reply(MESSAGES.faq);
+});
+
+bot.command("stats", function(ctx) {
+  ctx.reply(MESSAGES.stats);
+});
+
+bot.on("text", function(ctx) {
+  var text = ctx.message.text.toLowerCase();
+  var keys = Object.keys(RESPONSES.keywordMap);
+  for (var i = 0; i < keys.length; i++) {
+    var kws = keys[i].split("|");
+    var found = false;
+    for (var j = 0; j < kws.length; j++) {
+      if (text.includes(kws[j])) {
+        found = true;
+        break;
+      }
+    }
+    if (found) {
+      var key = RESPONSES.keywordMap[keys[i]];
+      ctx.reply(pick(RESPONSES[key]));
+      return;
     }
   }
   if (ctx.chat.type === "private") {
-    ctx.replyWithMarkdown(pick(RESPONSES.generic));
+    ctx.reply(pick(RESPONSES.generic));
   }
 });
 
-cron.schedule("0 0,6,12,18 * * *", async () => {
-  const msg = pick(MESSAGES.scheduledPromos);
-  for (const chatId of BOT_CONFIG.PROMO_CHANNELS) {
+cron.schedule("0 0,6,12,18 * * *", async function() {
+  var msg = pick(MESSAGES.scheduledPromos);
+  for (var i = 0; i < BOT_CONFIG.PROMO_CHANNELS.length; i++) {
     try {
-      await bot.telegram.sendMessage(chatId, msg, { parse_mode: "Markdown" });
-    } catch (e) {
-      console.error("Erreur promo:", e.message);
+      await bot.telegram.sendMessage(BOT_CONFIG.PROMO_CHANNELS[i], msg);
+    } catch(e) {
+      console.error("Erreur:", e.message);
     }
   }
 });
 
-bot.launch().then(() => {
+bot.launch().then(function() {
   console.log("Bot OILFIRE lance !");
 });
 
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
-
+process.once("SIGINT", function() { bot.stop("SIGINT"); });
+process.once("SIGTERM", function() { bot.stop("SIGTERM"); });
